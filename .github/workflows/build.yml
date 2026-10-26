@@ -1,0 +1,51 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Unzip project
+        run: |
+          ZIP=$(ls *.zip | head -n 1)
+          echo "Using $ZIP"
+          mkdir -p project
+          unzip -q -o "$ZIP" -d project
+          # if the zip contains a single top-level folder, step into it
+          if [ ! -f project/settings.gradle ]; then
+            SUB=$(dirname "$(find project -maxdepth 3 -name settings.gradle | head -n 1)")
+            echo "PROJECT_DIR=$SUB" >> "$GITHUB_ENV"
+          else
+            echo "PROJECT_DIR=project" >> "$GITHUB_ENV"
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build signed release APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: gradle --no-daemon assembleRelease
+
+      - name: Rename APK
+        run: cp "$PROJECT_DIR/app/build/outputs/apk/release/app-release.apk" TalhaLight.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TalhaLight-apk
+          path: TalhaLight.apk
